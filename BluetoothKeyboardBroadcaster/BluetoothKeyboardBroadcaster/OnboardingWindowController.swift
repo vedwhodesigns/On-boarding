@@ -5,47 +5,57 @@ final class OnboardingWindowController: NSWindowController {
 
     static let hasSeenKey = "hasSeenOnboarding"
 
+    // Static reference keeps the window controller alive until dismissed
+    private static var _instance: OnboardingWindowController?
+
     static func showIfNeeded() {
         guard !UserDefaults.standard.bool(forKey: hasSeenKey) else { return }
         let wc = OnboardingWindowController()
+        _instance = wc
         wc.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private var currentStep = 0
-    private let steps: [(title: String, body: String, image: String)] = [
+    // MARK: - Data
+
+    private let steps: [(emoji: String, title: String, body: String)] = [
         (
+            emoji: "⌨️",
             title: "Welcome to BT Keyboard Broadcaster",
-            body: "This app turns your MacBook into a Bluetooth keyboard and mouse for any nearby device — Windows PC, iPad, Android, or anything else with Bluetooth.\n\nIt lives in your menu bar and stays out of your way.",
-            image: "🖥️"
+            body: "This app turns your MacBook into a Bluetooth keyboard and mouse for any nearby device — Windows PC, iPad, Android, or anything with Bluetooth.\n\nIt lives in your menu bar and stays completely out of your way."
         ),
         (
-            title: "Step 1 — Grant Accessibility",
-            body: "To capture your keystrokes, the app needs Accessibility permission.\n\n1. Click 'Open Privacy & Security' below\n2. Go to Accessibility in the list\n3. Toggle ON 'BluetoothKeyboardBroadcaster'\n4. Come back here and click Next",
-            image: "🔐"
+            emoji: "🔐",
+            title: "Grant Accessibility Permission",
+            body: "To capture your keystrokes, the app needs Accessibility access.\n\n1. Click the button below\n2. Find Accessibility in the list\n3. Toggle ON 'BluetoothKeyboardBroadcaster'\n4. Come back here and click Next →"
         ),
         (
-            title: "Step 2 — Start Broadcasting",
-            body: "Click the keyboard icon  ⌨  in your Mac's menu bar (top-right of screen).\n\nThen press the big  ▶ Start Broadcasting  button.\n\nYour Mac will appear as 'MacBook Keyboard' on nearby devices.",
-            image: "📡"
+            emoji: "📡",
+            title: "Start Broadcasting",
+            body: "Click the  ⌨  icon in your Mac's menu bar (top-right corner of your screen).\n\nPress the big  ▶ Start Broadcasting  button.\n\nYour Mac will now appear as 'MacBook Keyboard' on nearby devices."
         ),
         (
-            title: "Step 3 — Pair from your other device",
-            body: "On your Windows PC / iPad / Android:\n\n1. Open Bluetooth Settings\n2. Click 'Add device' or 'Pair new device'\n3. Select 'MacBook Keyboard' from the list\n4. If a PIN appears on that screen, type it on your MacBook and press Return\n\nThat's it — you're connected!",
-            image: "✅"
+            emoji: "✅",
+            title: "Pair from Your Other Device",
+            body: "On Windows:  Settings → Bluetooth → Add device → 'MacBook Keyboard'\n\nOn iPad/iPhone:  Settings → Bluetooth → 'MacBook Keyboard'\n\nOn Android:  Settings → Connected devices → Pair new device\n\nIf a PIN appears on that screen, type it on your MacBook and press Return."
         ),
     ]
 
-    private let emojiLabel   = NSTextField(labelWithString: "")
-    private let titleLabel   = NSTextField(labelWithString: "")
-    private let bodyLabel    = NSTextField(labelWithString: "")
-    private let progressDots = NSStackView()
-    private let nextBtn      = NSButton()
-    private let privacyBtn   = NSButton()
+    private var currentStep = 0
+
+    // MARK: - Subviews
+    private let emojiField  = makeField("", size: 48)
+    private let titleField  = makeField("", size: 17, bold: true)
+    private let bodyField   = makeField("", size: 13)
+    private var dotViews: [NSView] = []
+    private let privacyBtn  = NSButton()
+    private let nextBtn     = NSButton()
+
+    // MARK: - Init
 
     convenience init() {
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 380),
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 420),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -58,67 +68,58 @@ final class OnboardingWindowController: NSWindowController {
         showStep(0)
     }
 
-    // MARK: - UI
+    // MARK: - Layout
 
     private func buildUI() {
-        guard let content = window?.contentView else { return }
-        let W = content.bounds.width
-        var y: CGFloat = content.bounds.height
+        guard let cv = window?.contentView else { return }
+        let W = cv.bounds.width    // 500
+        let H = cv.bounds.height   // 420
 
-        // Emoji / illustration
-        y -= 20
-        emojiLabel.frame = NSRect(x: 0, y: y - 70, width: W, height: 70)
-        emojiLabel.alignment = .center
-        emojiLabel.font = .systemFont(ofSize: 52)
-        content.addSubview(emojiLabel)
-        y -= 80
+        // Emoji
+        emojiField.frame = NSRect(x: 0, y: H - 90, width: W, height: 70)
+        emojiField.alignment = .center
+        cv.addSubview(emojiField)
 
         // Title
-        y -= 8
-        titleLabel.frame = NSRect(x: 32, y: y - 28, width: W - 64, height: 28)
-        titleLabel.alignment = .center
-        titleLabel.font = .boldSystemFont(ofSize: 17)
-        titleLabel.lineBreakMode = .byWordWrapping
-        titleLabel.maximumNumberOfLines = 2
-        content.addSubview(titleLabel)
-        y -= 38
+        titleField.frame = NSRect(x: 32, y: H - 130, width: W - 64, height: 34)
+        titleField.alignment = .center
+        titleField.lineBreakMode = .byWordWrapping
+        titleField.maximumNumberOfLines = 2
+        cv.addSubview(titleField)
 
-        // Body text
-        y -= 10
-        bodyLabel.frame = NSRect(x: 40, y: y - 140, width: W - 80, height: 140)
-        bodyLabel.alignment = .left
-        bodyLabel.font = .systemFont(ofSize: 13)
-        bodyLabel.textColor = .labelColor
-        bodyLabel.lineBreakMode = .byWordWrapping
-        bodyLabel.maximumNumberOfLines = 10
-        content.addSubview(bodyLabel)
-        y -= 148
+        // Body
+        bodyField.frame = NSRect(x: 40, y: H - 310, width: W - 80, height: 168)
+        bodyField.lineBreakMode = .byWordWrapping
+        bodyField.maximumNumberOfLines = 10
+        bodyField.textColor = .labelColor
+        cv.addSubview(bodyField)
 
-        // Progress dots
-        progressDots.frame = NSRect(x: 0, y: y - 20, width: W, height: 14)
-        progressDots.orientation = .horizontal
-        progressDots.distribution = .equalCentering
-        progressDots.spacing = 8
+        // Progress dots (manually positioned)
+        let dotSize: CGFloat = 8
+        let dotSpacing: CGFloat = 12
+        let totalDotsW = CGFloat(steps.count) * dotSize + CGFloat(steps.count - 1) * dotSpacing
+        var dotX = (W - totalDotsW) / 2
+
         for i in 0..<steps.count {
-            let dot = NSView(frame: NSRect(x: 0, y: 0, width: 8, height: 8))
+            let dot = NSView(frame: NSRect(x: dotX, y: H - 328, width: dotSize, height: dotSize))
             dot.wantsLayer = true
-            dot.layer?.cornerRadius = 4
-            dot.layer?.backgroundColor = (i == 0 ? NSColor.controlAccentColor : NSColor.tertiaryLabelColor).cgColor
-            dot.identifier = NSUserInterfaceItemIdentifier(rawValue: "\(i)")
-            progressDots.addArrangedSubview(dot)
+            dot.layer?.cornerRadius = dotSize / 2
+            dot.layer?.backgroundColor = (i == 0
+                ? NSColor.controlAccentColor
+                : NSColor.tertiaryLabelColor).cgColor
+            cv.addSubview(dot)
+            dotViews.append(dot)
+            dotX += dotSize + dotSpacing
         }
-        content.addSubview(progressDots)
-        y -= 30
 
-        // Privacy button (shown only on step 1)
-        privacyBtn.frame = NSRect(x: 40, y: y - 32, width: W - 80, height: 28)
+        // Privacy & Security button (visible only on step 1)
+        privacyBtn.frame = NSRect(x: (W - 260) / 2, y: H - 370, width: 260, height: 28)
         privacyBtn.bezelStyle = .rounded
         privacyBtn.title = "Open Privacy & Security →"
         privacyBtn.target = self
         privacyBtn.action = #selector(openPrivacy)
         privacyBtn.isHidden = true
-        content.addSubview(privacyBtn)
-        y -= 40
+        cv.addSubview(privacyBtn)
 
         // Next / Done button
         nextBtn.frame = NSRect(x: (W - 160) / 2, y: 20, width: 160, height: 36)
@@ -128,28 +129,29 @@ final class OnboardingWindowController: NSWindowController {
         nextBtn.keyEquivalent = "\r"
         nextBtn.target = self
         nextBtn.action = #selector(nextTapped)
-        content.addSubview(nextBtn)
+        cv.addSubview(nextBtn)
     }
+
+    // MARK: - Step management
 
     private func showStep(_ step: Int) {
         currentStep = step
         let s = steps[step]
-        emojiLabel.stringValue = s.image
-        titleLabel.stringValue = s.title
-        bodyLabel.stringValue  = s.body
 
-        // Privacy button only on step 1
-        privacyBtn.isHidden = (step != 1)
+        emojiField.stringValue = s.emoji
+        titleField.stringValue = s.title
+        bodyField.stringValue  = s.body
+        privacyBtn.isHidden    = (step != 1)
+        nextBtn.title          = (step == steps.count - 1) ? "Get Started  ✓" : "Next →"
 
-        // Update dots
-        for (i, view) in progressDots.arrangedSubviews.enumerated() {
-            view.layer?.backgroundColor = (i == step
+        for (i, dot) in dotViews.enumerated() {
+            dot.layer?.backgroundColor = (i == step
                 ? NSColor.controlAccentColor
                 : NSColor.tertiaryLabelColor).cgColor
         }
-
-        nextBtn.title = (step == steps.count - 1) ? "Get Started ✓" : "Next →"
     }
+
+    // MARK: - Actions
 
     @objc private func nextTapped() {
         if currentStep < steps.count - 1 {
@@ -157,6 +159,7 @@ final class OnboardingWindowController: NSWindowController {
         } else {
             UserDefaults.standard.set(true, forKey: Self.hasSeenKey)
             window?.close()
+            Self._instance = nil    // release after dismiss
         }
     }
 
@@ -165,4 +168,12 @@ final class OnboardingWindowController: NSWindowController {
             URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         )
     }
+}
+
+// MARK: - Helpers
+
+private func makeField(_ text: String, size: CGFloat, bold: Bool = false) -> NSTextField {
+    let f = NSTextField(labelWithString: text)
+    f.font = bold ? .boldSystemFont(ofSize: size) : .systemFont(ofSize: size)
+    return f
 }

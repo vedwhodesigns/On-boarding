@@ -202,11 +202,13 @@ final class BluetoothHIDManager: NSObject {
             permissions: .writeable
         )
 
-        // Protocol Mode: 1 = Report Protocol
+        // Protocol Mode: value must be nil because it has a write property;
+        // CoreBluetooth requires characteristics with cached values to be read-only.
+        // Reads are handled in didReceiveRead returning 0x01 (Report Protocol).
         let protocolChar = CBMutableCharacteristic(
             type: BTUUID.protocolMode,
             properties: [.read, .writeWithoutResponse],
-            value: Data([0x01]),
+            value: nil,
             permissions: [.readable, .writeable]
         )
 
@@ -452,6 +454,9 @@ extension BluetoothHIDManager: CBPeripheralManagerDelegate {
         case BTUUID.batteryLevel:
             let level = readBatteryLevel()
             request.value = Data([level])
+            peripheral.respond(to: request, withResult: .success)
+        case BTUUID.protocolMode:
+            request.value = Data([0x01])  // Report Protocol
             peripheral.respond(to: request, withResult: .success)
         default:
             peripheral.respond(to: request, withResult: .success)
