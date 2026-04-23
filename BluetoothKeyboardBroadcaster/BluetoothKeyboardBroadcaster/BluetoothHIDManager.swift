@@ -337,8 +337,9 @@ final class BluetoothHIDManager: NSObject {
     }
 
     private func readBatteryLevel() -> UInt8 {
-        guard let snapshot = IOPSCopyPowerSourcesInfo() else { return 100 }
-        guard let list = IOPSCopyPowerSourcesList(snapshot) as? [[String: Any]] else { return 100 }
+        let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
+        guard let cfList = IOPSCopyPowerSourcesList(snapshot) else { return 100 }
+        let list = cfList.takeRetainedValue() as? [[String: Any]] ?? []
         for src in list {
             if let t = src[kIOPSTypeKey] as? String, t == kIOPSInternalBatteryType,
                let cap = src[kIOPSCurrentCapacityKey] as? Int {
