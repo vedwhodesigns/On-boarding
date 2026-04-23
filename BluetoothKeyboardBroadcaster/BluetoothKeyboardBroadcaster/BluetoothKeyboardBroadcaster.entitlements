@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Hardened runtime: allow accessibility (event tap) -->
+    <key>com.apple.security.temporary-exception.apple-events</key>
+    <true/>
+
+    <!-- App Sandbox OFF – required for CGEvent tap + BLE peripheral -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+
+    <!-- Bluetooth peripheral mode -->
+    <key>com.apple.security.device.bluetooth</key>
+    <true/>
+</dict>
+</plist>
