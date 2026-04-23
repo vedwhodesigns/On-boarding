@@ -1,14 +1,15 @@
 import Cocoa
-import CoreBluetooth
 
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     var statusBarController: StatusBarController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide from Dock and application switcher
         NSApp.setActivationPolicy(.accessory)
         statusBarController = StatusBarController()
+
+        // Show the first-launch tutorial (no-op if already seen)
+        OnboardingWindowController.showIfNeeded()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

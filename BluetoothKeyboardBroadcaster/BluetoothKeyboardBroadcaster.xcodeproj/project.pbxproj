@@ -18,6 +18,10 @@
 		AA000010 /* CoreBluetooth.framework in Frameworks */     = {isa = PBXBuildFile; fileRef = AA100010; };
 		AA000011 /* Cocoa.framework in Frameworks */             = {isa = PBXBuildFile; fileRef = AA100011; };
 		AA000012 /* IOKit.framework in Frameworks */             = {isa = PBXBuildFile; fileRef = AA100012; };
+		AA000013 /* StatusIndicatorView.swift in Sources */      = {isa = PBXBuildFile; fileRef = AA100014; };
+		AA000014 /* PopoverViewController.swift in Sources */    = {isa = PBXBuildFile; fileRef = AA100015; };
+		AA000015 /* NotchIndicatorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100016; };
+		AA000016 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100017; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +38,10 @@
 		AA100011 /* Cocoa.framework */                    = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		AA100012 /* IOKit.framework */                    = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		AA100013 /* BluetoothKeyboardBroadcaster.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BluetoothKeyboardBroadcaster.entitlements; sourceTree = "<group>"; };
+		AA100014 /* StatusIndicatorView.swift */          = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusIndicatorView.swift; sourceTree = "<group>"; };
+		AA100015 /* PopoverViewController.swift */        = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverViewController.swift; sourceTree = "<group>"; };
+		AA100016 /* NotchIndicatorController.swift */     = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchIndicatorController.swift; sourceTree = "<group>"; };
+		AA100017 /* OnboardingWindowController.swift */   = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		AA200000 /* BluetoothKeyboardBroadcaster.app */   = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BluetoothKeyboardBroadcaster.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -62,6 +70,10 @@
 				AA100004 /* KeyboardInterceptor.swift */,
 				AA100008 /* MouseInterceptor.swift */,
 				AA100009 /* PreferencesWindowController.swift */,
+				AA100014 /* StatusIndicatorView.swift */,
+				AA100015 /* PopoverViewController.swift */,
+				AA100016 /* NotchIndicatorController.swift */,
+				AA100017 /* OnboardingWindowController.swift */,
 				AA100006 /* Info.plist */,
 				AA100013 /* BluetoothKeyboardBroadcaster.entitlements */,
 			);
@@ -163,6 +175,10 @@
 				AA000004 /* KeyboardInterceptor.swift in Sources */,
 				AA000008 /* MouseInterceptor.swift in Sources */,
 				AA000009 /* PreferencesWindowController.swift in Sources */,
+				AA000013 /* StatusIndicatorView.swift in Sources */,
+				AA000014 /* PopoverViewController.swift in Sources */,
+				AA000015 /* NotchIndicatorController.swift in Sources */,
+				AA000016 /* OnboardingWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

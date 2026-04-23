@@ -1,135 +1,99 @@
 import Cocoa
+import UserNotifications
 
 final class StatusBarController: NSObject {
 
-    let bluetoothManager = BluetoothHIDManager()
+    // MARK: - Sub-systems
+    let bluetoothManager    = BluetoothHIDManager()
     let keyboardInterceptor = KeyboardInterceptor()
-    let mouseInterceptor = MouseInterceptor()
+    let mouseInterceptor    = MouseInterceptor()
+    let notchIndicator      = NotchIndicatorController()
 
+    // MARK: - UI
     private var statusItem: NSStatusItem!
-    private var menu: NSMenu!
+    private var popover: NSPopover!
+    private var popoverVC: PopoverViewController!
 
-    // Dynamic menu items
-    private var toggleItem: NSMenuItem!
-    private var statusLineItem: NSMenuItem!
-    private var mouseToggleItem: NSMenuItem!
-    private var pairedMenu: NSMenu!
-    private var connectedCountItem: NSMenuItem!
+    // Icon animation
+    private var iconTimer: Timer?
+    private var iconPhase = false
 
+    // State
     private(set) var isBroadcasting = false
+    private var connectedDeviceName: String?
+    private var currentState: BroadcastState = .idle
+
     private var mouseEnabled: Bool {
-        get { !UserDefaults.standard.bool(forKey: Prefs.keyboardOnly) }
+        !UserDefaults.standard.bool(forKey: Prefs.keyboardOnly)
     }
+    private var deviceName: String {
+        UserDefaults.standard.string(forKey: Prefs.deviceName) ?? "MacBook Keyboard"
+    }
+
+    // MARK: - Init
 
     override init() {
         super.init()
-        bluetoothManager.delegate = self
+        bluetoothManager.delegate    = self
         keyboardInterceptor.delegate = self
-        mouseInterceptor.delegate = self
+        mouseInterceptor.delegate    = self
 
         setupStatusBar()
+        setupPopover()
         wirePreferences()
+        requestNotificationPermission()
     }
 
-    // MARK: - Status bar setup
+    // MARK: - Status bar icon
 
     private func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        guard let button = statusItem.button else { return }
-        button.image = makeIcon(active: false)
-        button.image?.isTemplate = true
-        button.toolTip = "Bluetooth Keyboard Broadcaster"
-        buildMenu()
-        statusItem.menu = menu
+        guard let btn = statusItem.button else { return }
+        btn.image  = makeIcon(active: false, phase: false)
+        btn.image?.isTemplate = true
+        btn.toolTip = "Bluetooth Keyboard Broadcaster"
+        btn.target  = self
+        btn.action  = #selector(togglePopover(_:))
+        btn.sendAction(on: .leftMouseUp)
     }
 
-    private func buildMenu() {
-        menu = NSMenu()
+    // MARK: - Popover
 
-        // ── Header ──────────────────────────────────────────────────────────
-        let header = NSMenuItem(title: "BT Keyboard Broadcaster", action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
-        menu.addItem(.separator())
+    private func setupPopover() {
+        popoverVC = PopoverViewController()
+        popoverVC.onToggle      = { [weak self] in self?.toggleBroadcasting() }
+        popoverVC.onPreferences = { [weak self] in
+            self?.closePopover()
+            PreferencesWindowController.shared.showPreferences()
+        }
 
-        // ── Status line ────────────────────────────────────────────────────
-        statusLineItem = NSMenuItem(title: "Status: Idle", action: nil, keyEquivalent: "")
-        statusLineItem.isEnabled = false
-        menu.addItem(statusLineItem)
-
-        connectedCountItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        connectedCountItem.isEnabled = false
-        connectedCountItem.isHidden = true
-        menu.addItem(connectedCountItem)
-        menu.addItem(.separator())
-
-        // ── Toggle ─────────────────────────────────────────────────────────
-        toggleItem = NSMenuItem(
-            title: "Start Broadcasting",
-            action: #selector(toggleBroadcasting),
-            keyEquivalent: "b"
-        )
-        toggleItem.keyEquivalentModifierMask = [.command, .shift]
-        toggleItem.target = self
-        menu.addItem(toggleItem)
-
-        // ── Mouse toggle ───────────────────────────────────────────────────
-        mouseToggleItem = NSMenuItem(
-            title: mouseEnabled ? "Disable Mouse Broadcasting" : "Enable Mouse Broadcasting",
-            action: #selector(toggleMouse),
-            keyEquivalent: ""
-        )
-        mouseToggleItem.target = self
-        menu.addItem(mouseToggleItem)
-        menu.addItem(.separator())
-
-        // ── Paired devices submenu ─────────────────────────────────────────
-        let pairedItem = NSMenuItem(title: "Paired Devices", action: nil, keyEquivalent: "")
-        pairedMenu = NSMenu()
-        refreshPairedMenu([])
-        pairedItem.submenu = pairedMenu
-        menu.addItem(pairedItem)
-        menu.addItem(.separator())
-
-        // ── Preferences ────────────────────────────────────────────────────
-        let prefsItem = NSMenuItem(
-            title: "Preferences...",
-            action: #selector(openPreferences),
-            keyEquivalent: ","
-        )
-        prefsItem.target = self
-        menu.addItem(prefsItem)
-        menu.addItem(.separator())
-
-        // ── Permissions ────────────────────────────────────────────────────
-        let privacyItem = NSMenuItem(
-            title: "Open Privacy & Security...",
-            action: #selector(openPrivacy),
-            keyEquivalent: ""
-        )
-        privacyItem.target = self
-        menu.addItem(privacyItem)
-        menu.addItem(.separator())
-
-        // ── Quit ───────────────────────────────────────────────────────────
-        let quitItem = NSMenuItem(
-            title: "Quit Bluetooth Keyboard Broadcaster",
-            action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"
-        )
-        menu.addItem(quitItem)
+        popover = NSPopover()
+        popover.contentViewController = popoverVC
+        popover.behavior = .transient
+        popover.animates = true
     }
 
-    // MARK: - Actions
+    @objc private func togglePopover(_ sender: NSButton) {
+        if popover.isShown {
+            closePopover()
+        } else {
+            popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+        }
+    }
 
-    @objc private func toggleBroadcasting() {
+    private func closePopover() {
+        popover.close()
+    }
+
+    // MARK: - Broadcasting control
+
+    func toggleBroadcasting() {
         isBroadcasting ? stopBroadcasting() : startBroadcasting()
     }
 
     private func startBroadcasting() {
-        // Refresh settings from prefs before starting
-        bluetoothManager.deviceName = UserDefaults.standard.string(forKey: Prefs.deviceName) ?? "MacBook Keyboard"
-        bluetoothManager.mode = UserDefaults.standard.bool(forKey: Prefs.keyboardOnly) ? .keyboardOnly : .keyboardAndMouse
+        bluetoothManager.deviceName = deviceName
+        bluetoothManager.mode = mouseEnabled ? .keyboardAndMouse : .keyboardOnly
 
         guard keyboardInterceptor.start() else {
             showAccessibilityAlert()
@@ -139,9 +103,14 @@ final class StatusBarController: NSObject {
 
         bluetoothManager.startBroadcasting()
         isBroadcasting = true
-        toggleItem.title = "Stop Broadcasting"
-        setIcon(active: true)
-        updateMouseToggleTitle()
+        startIconAnimation()
+        refreshPopover()
+
+        notchIndicator.show(
+            text: "📡  Broadcasting as \"\(deviceName)\"",
+            color: .systemBlue,
+            persistent: false
+        )
     }
 
     private func stopBroadcasting() {
@@ -149,153 +118,129 @@ final class StatusBarController: NSObject {
         mouseInterceptor.stop()
         bluetoothManager.stopBroadcasting()
         isBroadcasting = false
-        toggleItem.title = "Start Broadcasting"
-        setIcon(active: false)
-        setStatus("Idle")
-        connectedCountItem.isHidden = true
+        connectedDeviceName = nil
+        stopIconAnimation()
+        refreshPopover()
+        notchIndicator.hide()
     }
 
-    @objc private func toggleMouse() {
-        let nowEnabled = mouseEnabled
-        UserDefaults.standard.set(nowEnabled, forKey: Prefs.keyboardOnly) // flip: keyboardOnly = !mouseEnabled
-        if isBroadcasting {
-            if nowEnabled {
-                // was enabled, now disabling
-                mouseInterceptor.stop()
-            } else {
-                _ = mouseInterceptor.start()
-            }
+    // MARK: - Icon animation (pulsing while advertising)
+
+    private func startIconAnimation() {
+        iconTimer?.invalidate()
+        iconTimer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.iconPhase.toggle()
+            let img = self.makeIcon(active: true, phase: self.iconPhase)
+            img.isTemplate = false
+            self.statusItem.button?.image = img
         }
-        updateMouseToggleTitle()
+        RunLoop.main.add(iconTimer!, forMode: .common)
     }
 
-    @objc private func openPreferences() {
-        PreferencesWindowController.shared.showPreferences()
+    private func stopIconAnimation() {
+        iconTimer?.invalidate()
+        iconTimer = nil
+        let img = makeIcon(active: false, phase: false)
+        img.isTemplate = true
+        statusItem.button?.image = img
     }
 
-    @objc private func openPrivacy() {
-        NSWorkspace.shared.open(
-            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        )
+    private func setConnectedIcon() {
+        iconTimer?.invalidate()
+        iconTimer = nil
+        let img = makeIcon(active: true, phase: true)
+        img.isTemplate = false
+        statusItem.button?.image = img
     }
 
-    @objc private func removeDevice(_ sender: NSMenuItem) {
-        guard let device = sender.representedObject as? PairedDevice else { return }
-        bluetoothManager.removePairedDevice(device)
+    // MARK: - Popover sync
+
+    private func refreshPopover() {
+        DispatchQueue.main.async {
+            self.popoverVC.update(
+                state: self.currentState,
+                deviceName: self.deviceName,
+                connectedDeviceName: self.connectedDeviceName,
+                mouseEnabled: self.mouseEnabled
+            )
+        }
     }
 
     // MARK: - Preferences wiring
 
     private func wirePreferences() {
         PreferencesWindowController.shared.onSettingsChanged = { [weak self] in
-            guard let self else { return }
-            self.updateMouseToggleTitle()
+            guard let self = self else { return }
             if self.isBroadcasting {
-                // Re-apply immediately: stop and restart with new settings
                 self.stopBroadcasting()
                 self.startBroadcasting()
             }
+            self.refreshPopover()
         }
     }
 
-    // MARK: - UI helpers
+    // MARK: - Notifications
 
-    private func setStatus(_ text: String) {
-        DispatchQueue.main.async { self.statusLineItem.title = "Status: \(text)" }
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    private func setIcon(active: Bool) {
-        DispatchQueue.main.async {
-            self.statusItem.button?.image = self.makeIcon(active: active)
-            self.statusItem.button?.image?.isTemplate = !active
-        }
+    private func sendNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body  = body
+        content.sound = .default
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req)
     }
 
-    private func updateMouseToggleTitle() {
-        DispatchQueue.main.async {
-            self.mouseToggleItem.title = self.mouseEnabled
-                ? "Disable Mouse Broadcasting"
-                : "Enable Mouse Broadcasting"
-        }
-    }
-
-    private func refreshPairedMenu(_ devices: [PairedDevice]) {
-        pairedMenu.removeAllItems()
-        if devices.isEmpty {
-            let none = NSMenuItem(title: "No devices paired yet", action: nil, keyEquivalent: "")
-            none.isEnabled = false
-            pairedMenu.addItem(none)
-        } else {
-            for device in devices {
-                let item = NSMenuItem(
-                    title: device.name,
-                    action: #selector(removeDevice(_:)),
-                    keyEquivalent: ""
-                )
-                item.target = self
-                item.representedObject = device
-                item.toolTip = "Click to remove \(device.name)"
-                pairedMenu.addItem(item)
-            }
-            pairedMenu.addItem(.separator())
-            let clear = NSMenuItem(title: "Remove All", action: #selector(removeAllDevices), keyEquivalent: "")
-            clear.target = self
-            pairedMenu.addItem(clear)
-        }
-    }
-
-    @objc private func removeAllDevices() {
-        for device in bluetoothManager.pairedDevices {
-            bluetoothManager.removePairedDevice(device)
-        }
-    }
+    // MARK: - Alert
 
     private func showAccessibilityAlert() {
         let alert = NSAlert()
         alert.messageText = "Accessibility Permission Required"
-        alert.informativeText = "Bluetooth Keyboard Broadcaster needs Accessibility access to capture keystrokes and mouse events.\n\nGo to: System Settings → Privacy & Security → Accessibility\n\nThen enable Bluetooth Keyboard Broadcaster and try again."
-        alert.addButton(withTitle: "Open Privacy & Security")
+        alert.informativeText = "BT Keyboard Broadcaster needs Accessibility access to capture keystrokes and mouse events.\n\nSystem Settings → Privacy & Security → Accessibility → toggle ON this app, then try again."
+        alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn { openPrivacy() }
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(
+                URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+            )
+        }
     }
 
     // MARK: - Icon drawing
 
-    private func makeIcon(active: Bool) -> NSImage {
+    private func makeIcon(active: Bool, phase: Bool) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let img  = NSImage(size: size)
         img.lockFocus()
 
-        let stroke: NSColor = active ? .systemBlue : .labelColor
+        let baseAlpha: CGFloat = active ? (phase ? 1.0 : 0.5) : 1.0
+        let stroke = active ? NSColor.systemBlue.withAlphaComponent(baseAlpha) : NSColor.labelColor
         stroke.setStroke()
+        stroke.withAlphaComponent(active ? baseAlpha * 0.55 : 0.45).setFill()
 
-        // Keyboard outline
-        let body = NSBezierPath(roundedRect: NSRect(x: 1, y: 4, width: 16, height: 10),
-                                xRadius: 2, yRadius: 2)
+        // Keyboard body
+        let body = NSBezierPath(roundedRect: NSRect(x: 1, y: 4, width: 16, height: 10), xRadius: 2, yRadius: 2)
         body.lineWidth = 1.5
         body.stroke()
 
         // Key caps
-        let keyFill: NSColor = active
-            ? NSColor.systemBlue.withAlphaComponent(0.55)
-            : NSColor.labelColor.withAlphaComponent(0.45)
-        keyFill.setFill()
         for i in 0..<3 {
-            NSBezierPath(roundedRect: NSRect(x: 3 + CGFloat(i) * 4, y: 6.5, width: 3, height: 2.5),
-                         xRadius: 0.4, yRadius: 0.4).fill()
+            NSBezierPath(roundedRect: NSRect(x: 3 + CGFloat(i) * 4, y: 6.5, width: 3, height: 2.5), xRadius: 0.4, yRadius: 0.4).fill()
         }
-        // Space bar
-        NSBezierPath(roundedRect: NSRect(x: 3, y: 10, width: 10, height: 2),
-                     xRadius: 0.4, yRadius: 0.4).fill()
+        NSBezierPath(roundedRect: NSRect(x: 3, y: 10, width: 10, height: 2), xRadius: 0.4, yRadius: 0.4).fill()
 
-        // Green dot when active
+        // Status dot: blue (advertising, pulsing) or green (connected)
         if active {
-            NSColor.systemGreen.setFill()
-            NSBezierPath(ovalIn: NSRect(x: 14, y: 12, width: 3.5, height: 3.5)).fill()
+            let dotColor: NSColor = (currentState == .connected) ? .systemGreen : NSColor.systemBlue.withAlphaComponent(baseAlpha)
+            dotColor.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 13.5, y: 12, width: 4, height: 4)).fill()
         }
 
         img.unlockFocus()
-        img.isTemplate = !active
         return img
     }
 }
@@ -305,17 +250,21 @@ final class StatusBarController: NSObject {
 extension StatusBarController: BluetoothHIDManagerDelegate {
 
     func stateDidChange(_ state: BroadcastState) {
+        currentState = state
+
         switch state {
         case .idle:
-            setStatus("Idle")
+            stopIconAnimation()
+
         case .advertising:
-            setStatus("Advertising — discoverable as \"\(bluetoothManager.deviceName)\"")
+            startIconAnimation()
+
         case .connected:
-            setStatus("Connected")
+            setConnectedIcon()
+
         case .error(let msg):
-            setStatus("Error")
+            stopBroadcasting()
             DispatchQueue.main.async {
-                if self.isBroadcasting { self.stopBroadcasting() }
                 let alert = NSAlert()
                 alert.alertStyle = .warning
                 alert.messageText = "Bluetooth Error"
@@ -323,24 +272,30 @@ extension StatusBarController: BluetoothHIDManagerDelegate {
                 alert.runModal()
             }
         }
+        refreshPopover()
     }
 
     func deviceConnected(_ name: String) {
-        setStatus("Connected to \(name)")
-        DispatchQueue.main.async {
-            self.connectedCountItem.title = "  \(name) — active"
-            self.connectedCountItem.isHidden = false
-        }
+        connectedDeviceName = name
+        currentState = .connected
+        setConnectedIcon()
+        refreshPopover()
+
+        notchIndicator.show(text: "✓  Connected to \(name)", color: .systemGreen, persistent: false)
+        sendNotification(title: "Keyboard Connected", body: "\(name) is now using your MacBook keyboard and mouse.")
     }
 
     func deviceDisconnected(_ name: String) {
-        setStatus("Advertising — \(name) disconnected")
-        DispatchQueue.main.async { self.connectedCountItem.isHidden = true }
+        connectedDeviceName = nil
+        currentState = .advertising
+        startIconAnimation()
+        refreshPopover()
+
+        notchIndicator.show(text: "⚡  \(name) disconnected", color: .systemOrange, persistent: false)
+        sendNotification(title: "Device Disconnected", body: "\(name) disconnected. Broadcasting again…")
     }
 
-    func pairedDevicesUpdated(_ devices: [PairedDevice]) {
-        DispatchQueue.main.async { self.refreshPairedMenu(devices) }
-    }
+    func pairedDevicesUpdated(_ devices: [PairedDevice]) {}
 }
 
 // MARK: - KeyboardInterceptorDelegate
