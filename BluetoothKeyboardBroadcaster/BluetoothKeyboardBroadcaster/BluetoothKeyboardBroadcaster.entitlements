@@ -3,16 +3,23 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Hardened runtime: allow accessibility (event tap) -->
-    <key>com.apple.security.temporary-exception.apple-events</key>
-    <true/>
-
-    <!-- App Sandbox OFF – required for CGEvent tap + BLE peripheral -->
+    <!--
+      App Sandbox MUST be off:
+        • CGEvent.tapCreate with cgSessionEventTap requires an unsandboxed process.
+        • CBPeripheralManager peripheral mode works without sandbox but is blocked by it.
+      This means the app cannot be distributed on the Mac App Store in its current form.
+    -->
     <key>com.apple.security.app-sandbox</key>
     <false/>
 
-    <!-- Bluetooth peripheral mode -->
+    <!-- Bluetooth peripheral (BLE advertise + GATT) -->
     <key>com.apple.security.device.bluetooth</key>
+    <true/>
+
+    <!-- Hardened runtime: allow JIT (unused) and Apple Events (accessibility) -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <false/>
+    <key>com.apple.security.temporary-exception.apple-events</key>
     <true/>
 </dict>
 </plist>

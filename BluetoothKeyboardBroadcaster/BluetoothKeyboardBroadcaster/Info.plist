@@ -7,8 +7,6 @@
     <string>en</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.bluetoothkeyboardbroadcaster.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
@@ -21,16 +19,24 @@
     <string>1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>This app uses Bluetooth to broadcast your keyboard input to other devices as a standard Bluetooth HID keyboard.</string>
-    <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>This app advertises as a Bluetooth keyboard peripheral so other devices can connect and receive your keystrokes.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+
+    <!-- Run as menu-bar-only app (no Dock icon) -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- Minimum macOS version -->
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+
+    <!-- Bluetooth usage strings (required for CoreBluetooth peripheral on macOS 13+) -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Bluetooth Keyboard Broadcaster uses Bluetooth to advertise your Mac as a keyboard and mouse to nearby devices.</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>This app acts as a Bluetooth HID peripheral so other devices can connect and receive your keystrokes and mouse input.</string>
+
+    <!-- Prevents premature termination when the user quits via menu -->
     <key>NSSupportsAutomaticTermination</key>
     <false/>
     <key>NSSupportsSuddenTermination</key>
