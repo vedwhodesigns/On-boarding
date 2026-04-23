@@ -157,7 +157,7 @@ final class BluetoothHIDManager: NSObject {
     // MARK: - Mouse report sending
 
     func sendMouseReport(buttons: UInt8, deltaX: Int8, deltaY: Int8, wheel: Int8) {
-        var report = Data(4)
+        var report = Data(count: 4)
         report[0] = buttons
         report[1] = UInt8(bitPattern: deltaX)
         report[2] = UInt8(bitPattern: deltaY)
@@ -337,8 +337,8 @@ final class BluetoothHIDManager: NSObject {
     }
 
     private func readBatteryLevel() -> UInt8 {
-        let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
-        let list     = IOPSCopyList(snapshot).takeRetainedValue() as! [[String: Any]]
+        guard let snapshot = IOPSCopyPowerSourcesInfo() else { return 100 }
+        guard let list = IOPSCopyPowerSourcesList(snapshot) as? [[String: Any]] else { return 100 }
         for src in list {
             if let t = src[kIOPSTypeKey] as? String, t == kIOPSInternalBatteryType,
                let cap = src[kIOPSCurrentCapacityKey] as? Int {
